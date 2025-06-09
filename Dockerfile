@@ -14,6 +14,6 @@ RUN dotnet publish -c Release -o /app/publish
 # Etapa 2: runtime
 FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS final
 WORKDIR /app
-COPY --from=build /app/publish .
+COPY --from=build /app/publish/ .
 
-ENTRYPOINT ["dotnet", "Server.dll"]
+ENTRYPOINT ["dotnet", "CalculadoraRedes.Server.dll"]
