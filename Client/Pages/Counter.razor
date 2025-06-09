@@ -2,11 +2,11 @@
 
 <PageTitle>Counter</PageTitle>
 
-<h1>Counter</h1>
+<h1 style="color: var(--text-color);">Counter</h1>
 
-<p role="status">Current count: @currentCount</p>
+<p role="status" style="color: var(--text-color);">Current count: @currentCount</p>
 
-<button class="btn btn-primary" @onclick="IncrementCount">Click me</button>
+<button style="background-color: var(--accent-color); color: var(--text-color); border: none; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer;" @onclick="IncrementCount">Click me</button>
 
 @code {
     private int currentCount = 0;
