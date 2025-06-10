@@ -1,7 +1,9 @@
 @using CalculadoraRedes.Client.Services
+@using Microsoft.JSInterop
 
 @page "/historial"
-@inject HistorialService HistorialService
+@inject CalculadoraRedes.Client.Services.HistorialService HistorialService
+@inject IJSRuntime JS
 
 <h3 style="color: var(--text-color);">Historial de cálculos</h3>
 
@@ -29,9 +31,37 @@ else
 }
 
 @code {
-    void LimpiarHistorial()
+    protected override async Task OnInitializedAsync()
+    {
+        await CargarHistorialAsync();
+    }
+
+    async Task GuardarHistorialAsync()
+    {
+        await JS.InvokeVoidAsync("localStorage.setItem", "historialAtenuacion", System.Text.Json.JsonSerializer.Serialize(HistorialService.Historial));
+    }
+
+    async Task CargarHistorialAsync()
+    {
+        var json = await JS.InvokeAsync<string>("localStorage.getItem", "historialAtenuacion");
+        if (!string.IsNullOrEmpty(json))
+        {
+            var historial = System.Text.Json.JsonSerializer.Deserialize<List<CalculoAtenuacion>>(json);
+            if (historial != null)
+            {
+                var propiedad = HistorialService?.GetType().GetProperty("Historial");
+                if (propiedad != null)
+                {
+                    propiedad.SetValue(HistorialService, historial);
+                }
+            }
+        }
+    }
+
+    async void LimpiarHistorial()
     {
         HistorialService.Limpiar();
+        await GuardarHistorialAsync();
         StateHasChanged();
     }
 }

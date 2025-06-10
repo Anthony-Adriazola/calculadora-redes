@@ -1,8 +1,10 @@
 @using CalculadoraRedes.Client.Services
+@using System.Globalization
+@using Microsoft.JSInterop
 
 @page "/Atenuacion"
-@using System.Globalization
-@inject HistorialService HistorialService
+@inject CalculadoraRedes.Client.Services.HistorialService HistorialService
+@inject IJSRuntime JS
 
 <h3 style="color: var(--text-color);">Calculadora de Atenuación</h3>
 
@@ -14,7 +16,6 @@
         <option value="5">5 dBm</option>
         <option value="otro">Otro..</option>
     </select>
-
     @if (potenciaOLTSeleccion == "otro")
     {
         <input type="number" step="0.1" @bind="potenciaOLTManual" placeholder="Ingresa potencia (dBm)" style="background-color: var(--primary-color); color: var(--text-color); border: 1px solid var(--border-color);" />
@@ -25,7 +26,7 @@
     <label style="color: var(--text-color);">Splitters:</label>
     @foreach (var item in splitterSeleccionados)
     {
-        <div style="margin-bottom: 1rem;">
+        <div style="margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;">
             <select @bind="item.Valor" style="background-color: var(--primary-color); color: var(--text-color); border: 1px solid var(--border-color); padding: 0.5rem; border-radius: 4px;">
                 <option disabled selected value="0">Selecciona un Splitter</option>
                 <option value="3.6">1:2 (3.6 dB)</option>
@@ -34,34 +35,41 @@
                 <option value="14">1:16 (14 dB)</option>
                 <option value="17.5">1:32 (17.5 dB)</option>
             </select>
-            <button @onclick="() => EliminarSplitter(item)" style="background-color: var(--accent-color); color: var(--text-color); border: none; padding: 0.5rem; border-radius: 4px; cursor: pointer;">❌</button>
+            <button @onclick="() => EliminarSplitter(item)" class="btn-minimal"><span class="icon-small">❌</span></button>
         </div>
     }
-    <button @onclick="AgregarSplitter" style="background-color: var(--accent-color); color: var(--text-color); border: none; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer;">➕</button>
+    <button @onclick="AgregarSplitter" class="btn-minimal">+</button>
 </div>
 
 <div>
     <label style="color: var(--text-color);">Fusiones:</label>
-    <button @onclick="() => fusiones++" style="background-color: var(--accent-color); color: var(--text-color); border: none; padding: 0.5rem; border-radius: 4px; cursor: pointer;">➕</button>
-    <span style="color: var(--text-color);">@fusiones</span>
-    <button @onclick="() => fusiones = Math.Max(0, fusiones - 1)" style="background-color: var(--accent-color); color: var(--text-color); border: none; padding: 0.5rem; border-radius: 4px; cursor: pointer;">➖</button>
+    <div style="display: flex; align-items: center; gap: 0.5rem;">
+        <button @onclick="() => fusiones = Math.Max(0, fusiones - 1)" class="btn-minimal">–</button>
+        <input type="number" min="0" step="1" @bind="fusiones" class="input-minimal" />
+        <button @onclick="() => fusiones++" class="btn-minimal">+</button>
+    </div>
 </div>
 
 <div>
     <label style="color: var(--text-color);">Acopladores:</label>
-    <button @onclick="() => acopladores++" style="background-color: var(--accent-color); color: var(--text-color); border: none; padding: 0.5rem; border-radius: 4px; cursor: pointer;">➕</button>
-    <span style="color: var(--text-color);">@acopladores</span>
-    <button @onclick="() => acopladores = Math.Max(0, acopladores - 1)" style="background-color: var(--accent-color); color: var(--text-color); border: none; padding: 0.5rem; border-radius: 4px; cursor: pointer;">➖</button>
+    <div style="display: flex; align-items: center; gap: 0.5rem;">
+        <button @onclick="() => acopladores = Math.Max(0, acopladores - 1)" class="btn-minimal">–</button>
+        <input type="number" min="0" step="1" @bind="acopladores" class="input-minimal" />
+        <button @onclick="() => acopladores++" class="btn-minimal">+</button>
+    </div>
 </div>
 
 <div>
     <label style="color: var(--text-color);">Longitud del cable (m):</label>
-    <button @onclick="() => longitud++" style="background-color: var(--accent-color); color: var(--text-color); border: none; padding: 0.5rem; border-radius: 4px; cursor: pointer;">➕</button>
-    <span style="color: var(--text-color);">@longitud</span>
-    <button @onclick="() => longitud = Math.Max(0, longitud - 1)" style="background-color: var(--accent-color); color: var(--text-color); border: none; padding: 0.5rem; border-radius: 4px; cursor: pointer;">➖</button>
+    <div style="display: flex; align-items: center; gap: 0.5rem;">
+        <button @onclick="() => longitud = Math.Max(0, longitud - 1)" class="btn-minimal">–</button>
+        <input type="number" min="0" step="0.1" @bind="longitud" class="input-minimal" />
+        <button @onclick="() => longitud++" class="btn-minimal">+</button>
+    </div>
 </div>
 
 <button @onclick="CalcularAtenuacion">Calcular</button>
+<button @onclick="LimpiarTodo" style="background-color: var(--accent-color); color: var(--text-color); border: none; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer; margin-top: 1rem;">🧹 Limpiar todo</button>
 
 @if (resultado != null)
 {
@@ -76,18 +84,82 @@
     }
 
     List<SplitterSeleccionado> splitterSeleccionados = new() { new SplitterSeleccionado() };
-
-    int fusiones = 0;
-    int acopladores = 0;
-    double longitud = 0;
-
-    string potenciaOLTSeleccion = "3";
-    double? potenciaOLTManual = null;
     double? resultado = null;
+
+    class EstadoAtenuacion
+    {
+        public List<SplitterSeleccionado> Splitters { get; set; } = new();
+        public int Fusiones { get; set; }
+        public int Acopladores { get; set; }
+        public double Longitud { get; set; }
+        public string PotenciaOLTSeleccion { get; set; } = "3";
+        public double? PotenciaOLTManual { get; set; }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CargarHistorialAsync();
+        await CargarEstadoAtenuacionAsync();
+    }
+
+    async Task GuardarEstadoAtenuacionAsync()
+    {
+        var estado = new EstadoAtenuacion
+        {
+            Splitters = splitterSeleccionados.Select(s => new SplitterSeleccionado { Valor = s.Valor }).ToList(),
+            Fusiones = fusiones,
+            Acopladores = acopladores,
+            Longitud = longitud,
+            PotenciaOLTSeleccion = potenciaOLTSeleccion,
+            PotenciaOLTManual = potenciaOLTManual
+        };
+        await JS.InvokeVoidAsync("localStorage.setItem", "estadoAtenuacion", System.Text.Json.JsonSerializer.Serialize(estado));
+    }
+
+    async Task CargarEstadoAtenuacionAsync()
+    {
+        var json = await JS.InvokeAsync<string>("localStorage.getItem", "estadoAtenuacion");
+        if (!string.IsNullOrEmpty(json))
+        {
+            var estado = System.Text.Json.JsonSerializer.Deserialize<EstadoAtenuacion>(json);
+            if (estado != null)
+            {
+                splitterSeleccionados = estado.Splitters.Count > 0 ? estado.Splitters : new List<SplitterSeleccionado> { new SplitterSeleccionado() };
+                fusiones = estado.Fusiones;
+                acopladores = estado.Acopladores;
+                longitud = estado.Longitud;
+                potenciaOLTSeleccion = estado.PotenciaOLTSeleccion;
+                potenciaOLTManual = estado.PotenciaOLTManual;
+            }
+        }
+    }
+
+    async Task GuardarHistorialAsync()
+    {
+        await JS.InvokeVoidAsync("localStorage.setItem", "historialAtenuacion", System.Text.Json.JsonSerializer.Serialize(HistorialService.Historial));
+    }
+
+    async Task CargarHistorialAsync()
+    {
+        var json = await JS.InvokeAsync<string>("localStorage.getItem", "historialAtenuacion");
+        if (!string.IsNullOrEmpty(json))
+        {
+            var historial = System.Text.Json.JsonSerializer.Deserialize<List<CalculoAtenuacion>>(json);
+            if (historial != null)
+            {
+                var propiedad = HistorialService?.GetType().GetProperty("Historial");
+                if (propiedad != null)
+                {
+                    propiedad.SetValue(HistorialService, historial);
+                }
+            }
+        }
+    }
 
     void AgregarSplitter()
     {
         splitterSeleccionados.Add(new SplitterSeleccionado());
+        _ = GuardarEstadoAtenuacionAsync();
     }
 
     void EliminarSplitter(SplitterSeleccionado splitter)
@@ -95,6 +167,7 @@
         if (splitterSeleccionados.Count > 1)
         {
             splitterSeleccionados.Remove(splitter);
+            _ = GuardarEstadoAtenuacionAsync();
         }
     }
 
@@ -104,14 +177,12 @@
         {
             return potenciaOLTManual ?? 0;
         }
-
         return double.Parse(potenciaOLTSeleccion, CultureInfo.InvariantCulture);
     }
 
-    void CalcularAtenuacion()
+    async void CalcularAtenuacion()
     {
         double totalSplitters = 0;
-
         foreach (var splitter in splitterSeleccionados)
         {
             if (double.TryParse(splitter.Valor, NumberStyles.Float, CultureInfo.InvariantCulture, out double valor))
@@ -119,17 +190,12 @@
                 totalSplitters += valor;
             }
         }
-
         double AtenuacionFusiones = fusiones * 0.03;
         double AtenuacionAcopladores = acopladores * 0.5;
         double AtenuacionFibra = (longitud / 1000) * 0.2;
-
         double total = AtenuacionFusiones + AtenuacionAcopladores + AtenuacionFibra + totalSplitters;
-
         resultado = Math.Round(total, 2);
-
         double PotenciaRecibida = ObtenerPotenciaOLT() - resultado.Value;
-
         HistorialService.Agregar(new CalculoAtenuacion
         {
             totalSplitters = totalSplitters,
@@ -139,5 +205,109 @@
             AtenuacionTotal = total,
             PotenciaRecibida = PotenciaRecibida
         });
+        await GuardarHistorialAsync();
+        await GuardarEstadoAtenuacionAsync();
+        StateHasChanged();
+    }
+
+    void LimpiarTodo()
+    {
+        splitterSeleccionados = new() { new SplitterSeleccionado() };
+        fusiones = 0;
+        acopladores = 0;
+        longitud = 0;
+        potenciaOLTSeleccion = "3";
+        potenciaOLTManual = null;
+        resultado = null;
+        _ = GuardarEstadoAtenuacionAsync();
+    }
+
+    private int _fusiones = 0;
+    public int fusiones
+    {
+        get => _fusiones;
+        set { _fusiones = value; _ = GuardarEstadoAtenuacionAsync(); }
+    }
+
+    private int _acopladores = 0;
+    public int acopladores
+    {
+        get => _acopladores;
+        set { _acopladores = value; _ = GuardarEstadoAtenuacionAsync(); }
+    }
+
+    private double _longitud = 0;
+    public double longitud
+    {
+        get => _longitud;
+        set { _longitud = value; _ = GuardarEstadoAtenuacionAsync(); }
+    }
+
+    private string _potenciaOLTSeleccion = "3";
+    public string potenciaOLTSeleccion
+    {
+        get => _potenciaOLTSeleccion;
+        set { _potenciaOLTSeleccion = value; _ = GuardarEstadoAtenuacionAsync(); }
+    }
+
+    private double? _potenciaOLTManual = null;
+    public double? potenciaOLTManual
+    {
+        get => _potenciaOLTManual;
+        set { _potenciaOLTManual = value; _ = GuardarEstadoAtenuacionAsync(); }
+    }
+
+    void OnSplitterChanged()
+    {
+        _ = GuardarEstadoAtenuacionAsync();
     }
 }
+
+<style>
+.btn-minimal {
+    background: none;
+    border: none;
+    color: var(--accent-color);
+    font-size: 1.5rem;
+    width: 2.2rem;
+    height: 2.2rem;
+    border-radius: 50%;
+    transition: background 0.2s;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.btn-minimal:hover {
+    background: var(--accent-color);
+    color: #fff;
+}
+.input-minimal {
+    width: 60px;
+    text-align: center;
+    background: transparent;
+    color: var(--text-color);
+    border: none;
+    border-bottom: 2px solid var(--accent-color);
+    outline: none;
+    font-size: 1.1rem;
+    -webkit-appearance: none;
+    -moz-appearance: textfield;
+    appearance: textfield;
+}
+.input-minimal::-webkit-outer-spin-button,
+.input-minimal::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+.input-minimal[type=number]::-ms-input-spin-button {
+    display: none;
+}
+.icon-small {
+    font-size: 1rem;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+</style>
