@@ -38,6 +38,15 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
         <a class="dismiss">🗙</a>
     </div>
     <script src="_framework/blazor.webassembly.js"></script>
+    <script>
+        window.gtmPageView = function (url) {
+            window.dataLayer = window.dataLayer || [];
+            window.dataLayer.push({
+                'event': 'virtualPageView',
+                'virtualPageURL': url
+            });
+        };
+    </script>
 </body>
 
 </html>

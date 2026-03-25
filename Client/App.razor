@@ -1,4 +1,8 @@
-﻿<Router AppAssembly="@typeof(App).Assembly">
+﻿@inject NavigationManager NavManager
+@inject IJSRuntime JS
+@implements IDisposable
+
+<Router AppAssembly="@typeof(App).Assembly">
     <Found Context="routeData">
         <RouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)" />
         <FocusOnNavigate RouteData="@routeData" Selector="h1" />
@@ -9,3 +13,27 @@
         </LayoutView>
     </NotFound>
 </Router>
+
+@code {
+    protected override void OnInitialized()
+    {
+        NavManager.LocationChanged += OnLocationChanged;
+    }
+
+    private async void OnLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("gtmPageView", e.Location);
+        }
+        catch (Exception)
+        {
+            // Silently ignore errors to avoid crashing the app if GTM is unavailable
+        }
+    }
+
+    public void Dispose()
+    {
+        NavManager.LocationChanged -= OnLocationChanged;
+    }
+}
